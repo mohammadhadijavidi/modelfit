@@ -9,7 +9,7 @@ struct CompareContent: View {
     @Environment(\.colorScheme) private var scheme
 
     private let nameWidth: CGFloat = 230
-    private let trailingWidth: CGFloat = 190
+    private let trailingWidth: CGFloat = 200
     private let spacing: CGFloat = 16
 
     private func estimate(_ m: ModelAnalysis) -> MemoryEstimate {
@@ -81,6 +81,8 @@ struct CompareContent: View {
                     Text(number).font(Typo.number(15))
                     Text(unit).font(Typo.caption).foregroundStyle(.secondary)
                 }
+                .lineLimit(1)
+                .fixedSize()
                 Spacer(minLength: 4)
                 VerdictPill(verdict: e.verdict)
             }

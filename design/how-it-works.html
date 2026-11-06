@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{width:1400px;height:600px;background:#14151A;font-family:-apple-system,"SF Pro Text","Inter","Helvetica Neue",Arial,sans-serif;color:#E9EAF0;padding:44px 48px}
+h1{font-size:26px;font-weight:650;letter-spacing:-.2px}
+.sub{color:#9A9DAD;font-size:15px;margin-top:6px}
+.row{display:flex;align-items:stretch;gap:0;margin-top:34px}
+.box{background:#1F2128;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 18px 16px;width:228px}
+.box h2{font-size:15px;font-weight:650;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.box p{font-size:12.5px;line-height:1.5;color:#A6A9B8}
+.box code{font-family:"SF Mono",Menlo,monospace;font-size:11.5px;color:#C9CDFF}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.arrow{width:38px;display:flex;align-items:center;justify-content:center;color:#5A5E70;font-size:22px}
+.est{border-color:rgba(112,133,255,.45);background:linear-gradient(180deg,#232742,#1F2128)}
+.mac{position:absolute;left:800px;top:392px;width:320px}
+.vline{position:absolute;left:959px;top:356px;width:2px;height:36px;background:#5A5E70}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:99px;margin:3px 4px 0 0}
+.c{color:#3CCB82;background:rgba(60,203,130,.15)}.t{color:#F4B23E;background:rgba(244,178,62,.15)}.w{color:#FF6E66;background:rgba(255,110,102,.15)}
+.bar{height:10px;border-radius:99px;display:flex;overflow:hidden;margin:10px 0 4px;background:rgba(255,255,255,.06)}
+</style></head><body>
+<h1>How ModelFit answers "can my Mac run this?"</h1>
+<div class="sub">Everything happens on your Mac, from the file header alone. No weights are loaded, nothing is uploaded.</div>
+<div class="row">
+  <div class="box"><h2>Your model</h2><p><code>.gguf</code> file or split parts<br><code>.safetensors</code> file or shards<br>MLX or Hugging Face folder with <code>config.json</code></p><p style="margin-top:10px">Drop it on the window, use File &gt; Open, or press Space in Finder.</p></div>
+  <div class="arrow">&rarr;</div>
+  <div class="box"><h2>Header reader</h2><p>GGUF: magic, version, metadata key-values, tensor infos.<br>safetensors: 8-byte length plus JSON header.</p><p style="margin-top:10px">Big arrays (vocab, merges) are skipped by seeking. A few MB read, even for 70 GB models.</p></div>
+  <div class="arrow">&rarr;</div>
+  <div class="box"><h2>Model facts</h2><p>Parameters from tensor shapes, exact bytes per tensor type (Q4_K, BF16, MLX 4-bit), layers, KV heads, head dimension, context length, vocabulary.</p></div>
+  <div class="arrow">&rarr;</div>
+  <div class="box est"><h2>Memory estimate</h2>
+    <div class="bar"><div style="width:46%;background:#7085FF"></div><div style="width:2px"></div><div style="width:26%;background:#2CCDB4"></div><div style="width:2px"></div><div style="width:10%;background:#6E7180"></div></div>
+    <p><span class="dot" style="background:#7085FF"></span> weights &nbsp;<span class="dot" style="background:#2CCDB4"></span> KV cache &nbsp;<span class="dot" style="background:#6E7180"></span> overhead</p>
+    <p style="margin-top:8px"><code>KV = 2 &times; layers &times; ctx &times; kv_heads &times; head_dim &times; bytes</code></p></div>
+  <div class="arrow">&rarr;</div>
+  <div class="box"><h2>Verdict per context</h2><p>2K, 8K, 32K and 128K tokens, capped at the model's maximum, with F16, Q8_0 or Q4_0 KV cache.</p>
+    <div style="margin-top:8px"><span class="pill c">Fits comfortably</span><span class="pill t">Tight</span><span class="pill w">Won't fit</span></div></div>
+</div>
+<div class="vline"></div>
+<div class="box mac"><h2>This Mac</h2><p>Physical memory from <code>ProcessInfo</code>. GPU limit from Metal's <code>recommendedMaxWorkingSetSize</code>, or a rule of thumb (about 2/3 of RAM up to 36 GB, 3/4 above). Adjustable in Settings.</p></div>
+</body></html>

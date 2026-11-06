@@ -66,12 +66,10 @@ final class MemoryTests: XCTestCase {
 
         let ladder = MemoryEstimator.ladder(a, settings: .init(), profile: .sample16GB)
         XCTAssertEqual(ladder.map(\.contextLength), [2048, 8192, 32768, 131_072])
-        XCTAssertEqual(ladder.map(\.total), [
-            5_745_991_936 + 268_435_456,
-            5_745_991_936 + 1_073_741_824,
-            5_745_991_936 + 4_294_967_296,
-            5_745_991_936 + 17_179_869_184,
-        ])
+        let fixed: Int64 = 5_745_991_936
+        let kvBytes: [Int64] = [268_435_456, 1_073_741_824, 4_294_967_296, 17_179_869_184]
+        let expectedTotals: [Int64] = kvBytes.map { fixed + $0 }
+        XCTAssertEqual(ladder.map(\.total), expectedTotals)
         XCTAssertEqual(ladder.map(\.verdict), [.comfortable, .comfortable, .tight, .wontFit])
 
         let summary = FitSummary(estimates: ladder, profile: .sample16GB)

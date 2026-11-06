@@ -65,11 +65,15 @@ public enum GGUFParser {
 
         // Each metadata entry needs at least a key length, a type and one value byte;
         // each tensor info at least a name length, dimension count, type and offset.
-        guard kvCount <= 1_000_000, kvCount * (lengthSize + 5) <= r.remaining else {
-            throw ModelFitError.corrupt(file: file, reason: "it declares \(kvCount) metadata entries, more than the file can hold")
+        // Absurd counts mean a damaged header; plausible counts that don't fit mean a cut-off file.
+        guard kvCount <= 1_000_000 else {
+            throw ModelFitError.corrupt(file: file, reason: "it declares \(kvCount) metadata entries, far more than any model has")
         }
-        guard tensorCount <= 10_000_000, tensorCount * (lengthSize + 16) <= r.remaining else {
-            throw ModelFitError.corrupt(file: file, reason: "it declares \(tensorCount) tensors, more than the file can hold")
+        guard tensorCount <= 10_000_000 else {
+            throw ModelFitError.corrupt(file: file, reason: "it declares \(tensorCount) tensors, far more than any model has")
+        }
+        guard kvCount * (lengthSize + 5) + tensorCount * (lengthSize + 16) <= r.remaining else {
+            throw ModelFitError.truncated(file: file, context: "a header that declares \(kvCount) metadata entries and \(tensorCount) tensors", offset: r.fileSize)
         }
 
         func readString(_ context: @autoclosure () -> String, cap: UInt64 = maxStoredString) throws -> GGUFValue {

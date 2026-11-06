@@ -117,7 +117,7 @@ struct FitLadderView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var labelWidth: CGFloat { compact ? 42 : 64 }
-    private var trailingWidth: CGFloat { compact ? 140 : 196 }
+    private var trailingWidth: CGFloat { compact ? 150 : 206 }
     private var spacing: CGFloat { compact ? 12 : 16 }
     private var barHeight: CGFloat { compact ? 14 : 20 }
 
@@ -160,6 +160,8 @@ struct FitLadderView: View {
                     Text(number).font(Typo.number(compact ? 13 : 16))
                     Text(unit).font(Typo.caption).foregroundStyle(.secondary)
                 }
+                .lineLimit(1)
+                .fixedSize()
                 Spacer(minLength: 4)
                 VerdictPill(verdict: e.verdict, compact: compact)
             }

@@ -167,9 +167,10 @@ struct QuantizationCard: View {
                         ForEach(Array(mix.enumerated()), id: \.element.id) { index, share in
                             Rectangle()
                                 .fill(theme.mixColor(index))
-                                .frame(width: max(2, (geo.size.width - CGFloat(mix.count - 1) * 2) * CGFloat(Double(share.bytes) / total)))
+                                .frame(width: max(1.5, (geo.size.width - CGFloat(mix.count - 1) * 2) * CGFloat(Double(share.bytes) / total)))
                         }
                     }
+                    .frame(width: geo.size.width, alignment: .leading)
                     .clipShape(Capsule())
                 }
                 .frame(height: 10)
