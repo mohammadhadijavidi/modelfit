@@ -1,0 +1,122 @@
+name: devloop
+
+on:
+  push:
+    branches: ['xfer-modelfit']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: devloop-modelfit
+  cancel-in-progress: true
+
+jobs:
+  loop:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          mkdir -p ci-out
+          { sw_vers; xcodebuild -version; swift --version; uname -m; sysctl -n machdep.cpu.brand_string || true; sysctl -n hw.memsize; } 2>&1 | tee ci-out/toolchain.txt
+          brew install xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcodegen --version | tee -a ci-out/toolchain.txt
+
+      - name: Generate project
+        run: xcodegen generate 2>&1 | tee ci-out/xcodegen.log
+
+      - name: Test
+        id: test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          xcodebuild -project ModelFit.xcodeproj -scheme ModelFit -destination 'platform=macOS' \
+            -derivedDataPath build/test -resultBundlePath build/Tests.xcresult \
+            CODE_SIGN_IDENTITY=- test 2>&1 | tee ci-out/test.log
+
+      - name: Test summary
+        if: always()
+        run: |
+          xcrun xcresulttool get test-results summary --path build/Tests.xcresult > ci-out/test-summary.json 2>&1 || \
+            xcrun xcresulttool get --legacy --format json --path build/Tests.xcresult > ci-out/test-summary.json 2>&1 || true
+          xcrun xcresulttool get test-results tests --path build/Tests.xcresult > ci-out/test-cases.json 2>&1 || true
+          grep -E "error:|warning:|Test Case .* (passed|failed)|Executed|\*\* TEST" ci-out/test.log | grep -v "^ld: warning" > ci-out/test-digest.txt || true
+
+      - name: Release build
+        id: release
+        if: always()
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          chmod +x scripts/build-release.sh
+          scripts/build-release.sh 2>&1 | tee ci-out/build.log
+          grep -E "warning:|error:" ci-out/build.log | sort -u > ci-out/build-warnings.txt || true
+          ls -la dist | tee -a ci-out/build.log
+
+      - name: Inspect bundle and render assets from the zipped app
+        id: render
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          set -x
+          rm -rf /tmp/mf && mkdir -p /tmp/mf
+          ditto -x -k dist/ModelFit.zip /tmp/mf
+          APP=/tmp/mf/ModelFit.app
+          {
+            echo "== Contents"; find "$APP/Contents" -maxdepth 2 | sort
+            echo "== PlugIns"; ls -la "$APP/Contents/PlugIns" || true
+            echo "== Extensions"; ls -la "$APP/Contents/Extensions" 2>/dev/null || echo "(no Contents/Extensions)"
+            echo "== Frameworks"; ls -la "$APP/Contents/Frameworks" || true
+            echo "== lipo"; lipo -info "$APP/Contents/MacOS/ModelFit"
+            echo "== codesign app"; codesign -dv --verbose=2 "$APP" 2>&1
+            echo "== codesign verify"; codesign --verify --deep --strict --verbose=2 "$APP" 2>&1
+            echo "== appex entitlements"; codesign -d --entitlements - "$APP/Contents/PlugIns/ModelFitQuickLook.appex" 2>&1
+            echo "== appex Info.plist"; plutil -p "$APP/Contents/PlugIns/ModelFitQuickLook.appex/Contents/Info.plist"
+            echo "== app Info.plist"; plutil -p "$APP/Contents/Info.plist"
+            echo "== otool appex"; otool -L "$APP/Contents/PlugIns/ModelFitQuickLook.appex/Contents/MacOS/ModelFitQuickLook"
+            echo "== otool -l rpath appex"; otool -l "$APP/Contents/PlugIns/ModelFitQuickLook.appex/Contents/MacOS/ModelFitQuickLook" | grep -A2 LC_RPATH
+          } > ci-out/bundle.txt 2>&1
+          mkdir -p ci-out/renders
+          perl -e 'alarm shift; exec @ARGV' 900 "$APP/Contents/MacOS/ModelFit" --render-assets "$PWD/ci-out/renders" > ci-out/render.log 2>&1
+          code=$?
+          echo "render exit=$code" | tee -a ci-out/render.log
+          ls -la ci-out/renders | tee -a ci-out/render.log
+          {
+            echo "== Quick Look registration attempt"
+            sudo cp -R "$APP" /Applications/ || true
+            LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+            $LSREG -f -R /Applications/ModelFit.app || true
+            sleep 3
+            pluginkit -m -v -p com.apple.quicklook.preview 2>&1 | grep -i modelfit || echo "pluginkit: not listed"
+            pluginkit -a /Applications/ModelFit.app/Contents/PlugIns/ModelFitQuickLook.appex 2>&1 || true
+            sleep 2
+            pluginkit -m -v -p com.apple.quicklook.preview 2>&1 | grep -i modelfit || echo "pluginkit after -a: not listed"
+            $LSREG -dump 2>/dev/null | grep -i -A3 "com.mohammadhadijavidi.modelfit.gguf" | head -20 || true
+          } > ci-out/quicklook.txt 2>&1
+          exit $code
+
+      - name: Publish outputs
+        if: always()
+        run: |
+          {
+            echo "test=${{ steps.test.outcome }}"
+            echo "release=${{ steps.release.outcome }}"
+            echo "render=${{ steps.render.outcome }}"
+            echo "sha=${GITHUB_SHA}"
+          } > ci-out/status.txt
+          git config user.name "Mohammad Hadi Javidi"
+          git config user.email "188035795+mohammadhadijavidi@users.noreply.github.com"
+          git checkout -B xfer-modelfit-out
+          git add -f ci-out
+          git commit -q -m "devloop outputs for ${GITHUB_SHA}" || true
+          git push -f origin xfer-modelfit-out
+
+      - name: Fail if a stage failed
+        if: always()
+        run: |
+          cat ci-out/status.txt
+          ! grep -q "=failure" ci-out/status.txt

@@ -1,0 +1,13 @@
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+build/
+DerivedData/
+dist/
+ci-out/
+*.xcresult
+.DS_Store
+.swiftpm/
+.build/
+design/node_modules/
+design/out/
